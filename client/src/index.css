@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(222 84% 4%);
+  --foreground: hsl(213 31% 91%);
+  --card: hsl(222 84% 5%);
+  --card-foreground: hsl(213 31% 91%);
+  --popover: hsl(222 84% 5%);
+  --popover-foreground: hsl(213 31% 91%);
+  --primary: hsl(217 91% 60%);
+  --primary-foreground: hsl(222 84% 5%);
+  --secondary: hsl(217 32% 17%);
+  --secondary-foreground: hsl(213 31% 91%);
+  --muted: hsl(217 32% 17%);
+  --muted-foreground: hsl(215 20% 65%);
+  --accent: hsl(217 32% 17%);
+  --accent-foreground: hsl(213 31% 91%);
+  --destructive: hsl(0 63% 31%);
+  --destructive-foreground: hsl(213 31% 91%);
+  --border: hsl(217 32% 17%);
+  --input: hsl(217 32% 17%);
+  --ring: hsl(217 91% 60%);
+  --radius: 0.5rem;
+  --font-sans: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+.dark {
+  --background: hsl(222 84% 4%);
+  --foreground: hsl(213 31% 91%);
+  --card: hsl(222 84% 5%);
+  --card-foreground: hsl(213 31% 91%);
+  --popover: hsl(222 84% 5%);
+  --popover-foreground: hsl(213 31% 91%);
+  --primary: hsl(217 91% 60%);
+  --primary-foreground: hsl(222 84% 5%);
+  --secondary: hsl(217 32% 17%);
+  --secondary-foreground: hsl(213 31% 91%);
+  --muted: hsl(217 32% 17%);
+  --muted-foreground: hsl(215 20% 65%);
+  --accent: hsl(217 32% 17%);
+  --accent-foreground: hsl(213 31% 91%);
+  --destructive: hsl(0 63% 31%);
+  --destructive-foreground: hsl(213 31% 91%);
+  --border: hsl(217 32% 17%);
+  --input: hsl(217 32% 17%);
+  --ring: hsl(217 91% 60%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground overflow-hidden;
+  }
+}
+
+.syntax-highlight {
+  color: hsl(213 31% 91%);
+}
+
+.syntax-keyword { 
+  color: hsl(317 100% 74%); 
+}
+
+.syntax-string { 
+  color: hsl(95 38% 62%); 
+}
+
+.syntax-number { 
+  color: hsl(29 54% 61%); 
+}
+
+.syntax-comment { 
+  color: hsl(215 20% 65%); 
+  font-style: italic; 
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: hsl(217 32% 17%);
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(215 20% 65%);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(213 31% 91%);
+}
