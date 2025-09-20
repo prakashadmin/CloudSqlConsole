@@ -10,7 +10,7 @@ import ResultsPanel from "@/components/results-panel";
 import ConfigurationModal from "@/components/configuration-modal";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/contexts/user-context";
-import type { Connection } from "@shared/schema";
+import type { Connection, SavedQuery } from "@shared/schema";
 
 export interface QueryTab {
   id: string;
@@ -147,6 +147,26 @@ export default function SQLClient() {
     ));
   };
 
+  const handleLoadSavedQuery = (savedQuery: SavedQuery) => {
+    // Create a new tab with the saved query content
+    const newTabId = Date.now().toString();
+    const newTab: QueryTab = {
+      id: newTabId,
+      name: savedQuery.queryName,
+      content: savedQuery.queryText,
+      connectionId: activeConnection?.id,
+      isActive: true,
+      isUnsaved: false,
+    };
+
+    setQueryTabs(prev => {
+      // Deactivate all existing tabs
+      const updatedTabs = prev.map(tab => ({ ...tab, isActive: false }));
+      // Add the new tab
+      return [...updatedTabs, newTab];
+    });
+  };
+
   return (
     <div className="h-screen bg-background text-foreground overflow-hidden" data-testid="sql-client-container">
       {/* Header */}
@@ -221,6 +241,7 @@ export default function SQLClient() {
                 activeConnection={activeConnection}
                 onConnectionSelect={setActiveConnection}
                 onAddConnection={() => setShowConfigModal(true)}
+                onLoadSavedQuery={handleLoadSavedQuery}
               />
               <Button
                 variant="ghost"

@@ -1,0 +1,63 @@
+
+### **Feature: Save and Manage Queries**
+
+**Description:**
+When a user clicks on **Save**, the system should prompt for a query name. Once saved, queries will appear in the highlighted section of the UI. Query visibility is controlled by user roles.
+
+---
+
+### **Functional Requirements**
+
+1. **Save Query**
+
+   * On clicking **Save**, a dialog must appear asking for a *Query Name*.
+   * Query metadata should include:
+
+     * `query_id` (UUID / unique identifier)
+     * `query_name` (string, user-provided)
+     * `query_text` (SQL content)
+     * `created_by` (user\_id)
+     * `role` (role of the user saving it)
+     * `created_at` (timestamp)
+
+2. **Role-Based Visibility**
+
+   * **User role:** Can only view their own saved queries.
+   * **Developer role:** Can view all queries saved by any Developer.
+   * **Admin role:** Can view all queries saved by *User* and *Developer* roles.
+
+3. **UI Display**
+
+   * Saved queries must be listed in the highlighted section.
+   * Queries should be grouped or filterable by role for easy navigation.
+
+---
+
+### **Acceptance Criteria & Test Cases**
+
+✅ **Save Functionality**
+
+* [ ] When user clicks Save → prompt appears for Query Name.
+* [ ] Saving without a name should show a validation error.
+* [ ] After saving, query appears in highlighted section instantly.
+
+✅ **Role Permissions**
+
+* [ ] A User can only see their own queries (verify with 2 different User accounts).
+* [ ] A Developer can see all queries created by Developers (verify with multiple Developer accounts).
+* [ ] An Admin can see all queries created by Users + Developers.
+* [ ] Admin should not miss any Developer/User queries.
+
+✅ **Data Integrity**
+
+* [ ] Saved query persists in DB after logout/login.
+* [ ] Query name must be unique per user (optional: allow overwrite confirmation).
+* [ ] Query text must remain intact (no truncation).
+
+✅ **Edge Cases**
+
+* [ ] Empty SQL text should not be saved.
+* [ ] Large query (e.g., >10k characters) should still save properly.
+* [ ] Multiple users saving simultaneously should not overwrite each other’s queries.
+
+---

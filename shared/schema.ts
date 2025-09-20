@@ -65,6 +65,16 @@ export const userSessions = pgTable("user_sessions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Saved queries table for user-saved SQL queries
+export const savedQueries = pgTable("saved_queries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  queryName: text("query_name").notNull(),
+  queryText: text("query_text").notNull(),
+  createdBy: varchar("created_by").references(() => users.id).notNull(),
+  role: text("role").notNull(), // role of the user who saved it
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 export const insertConnectionSchema = createInsertSchema(connections).omit({
   id: true,
   createdAt: true,
@@ -91,6 +101,16 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+export const insertSavedQuerySchema = createInsertSchema(savedQueries).omit({
+  id: true,
+  createdBy: true,
+  role: true,
+  createdAt: true,
+}).extend({
+  queryName: z.string().min(1, "Query name is required").max(100, "Query name must be less than 100 characters"),
+  queryText: z.string().min(1, "Query text cannot be empty"),
+});
+
 export type InsertConnection = z.infer<typeof insertConnectionSchema>;
 export type Connection = typeof connections.$inferSelect;
 export type InsertQuery = z.infer<typeof insertQuerySchema>;
@@ -100,3 +120,5 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type UserSession = typeof userSessions.$inferSelect;
 export type LoginRequest = z.infer<typeof loginSchema>;
+export type InsertSavedQuery = z.infer<typeof insertSavedQuerySchema>;
+export type SavedQuery = typeof savedQueries.$inferSelect;

@@ -1,8 +1,8 @@
-import { type Connection, type InsertConnection, type Query, type InsertQuery, type QueryResult, type User, type InsertUser, type UserSession, connections, queries, queryResults, users, userSessions } from "@shared/schema";
+import { type Connection, type InsertConnection, type Query, type InsertQuery, type QueryResult, type User, type InsertUser, type UserSession, type SavedQuery, type InsertSavedQuery, connections, queries, queryResults, users, userSessions, savedQueries } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, or } from "drizzle-orm";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL environment variable is required");
@@ -51,17 +51,25 @@ export interface IStorage {
   getSessionByToken(sessionToken: string): Promise<UserSession | undefined>;
   deleteSession(sessionToken: string): Promise<boolean>;
   deleteExpiredSessions(): Promise<number>;
+  
+  // Saved queries methods
+  createSavedQuery(userId: string, userRole: string, query: InsertSavedQuery): Promise<SavedQuery>;
+  getSavedQueriesForUser(userId: string, userRole: string): Promise<SavedQuery[]>;
+  deleteSavedQuery(queryId: string, userId: string): Promise<boolean>;
+  getSavedQueryById(queryId: string): Promise<SavedQuery | undefined>;
 }
 
 class MemStorage implements IStorage {
   private connections: Map<string, Connection>;
   private queries: Map<string, Query>;
   private queryResults: Map<string, QueryResult>;
+  private savedQueries: Map<string, SavedQuery>;
 
   constructor() {
     this.connections = new Map();
     this.queries = new Map();
     this.queryResults = new Map();
+    this.savedQueries = new Map();
 
     // Add default connections from environment variables if available
     this.initializeDefaultConnections();
@@ -293,6 +301,51 @@ class MemStorage implements IStorage {
     }
     return deletedCount;
   }
+
+  // Saved queries methods (MemStorage implementation)
+  async createSavedQuery(userId: string, userRole: string, query: InsertSavedQuery): Promise<SavedQuery> {
+    const id = randomUUID();
+    const savedQuery: SavedQuery = {
+      id,
+      queryName: query.queryName,
+      queryText: query.queryText,
+      createdBy: userId,
+      role: userRole,
+      createdAt: new Date(),
+    };
+    this.savedQueries.set(id, savedQuery);
+    return savedQuery;
+  }
+
+  async getSavedQueriesForUser(userId: string, userRole: string): Promise<SavedQuery[]> {
+    const allQueries = Array.from(this.savedQueries.values());
+    
+    // Apply role-based filtering
+    if (userRole === 'business_user') {
+      // Business users can only see their own queries
+      return allQueries.filter(q => q.createdBy === userId);
+    } else if (userRole === 'developer') {
+      // Developers can see all developer queries
+      return allQueries.filter(q => q.role === 'developer');
+    } else if (userRole === 'admin') {
+      // Admins can see all queries from business_user, developer, and admin roles
+      return allQueries.filter(q => q.role === 'business_user' || q.role === 'developer' || q.role === 'admin');
+    }
+    
+    return [];
+  }
+
+  async deleteSavedQuery(queryId: string, userId: string): Promise<boolean> {
+    const query = this.savedQueries.get(queryId);
+    if (!query || query.createdBy !== userId) {
+      return false; // Only allow users to delete their own queries
+    }
+    return this.savedQueries.delete(queryId);
+  }
+
+  async getSavedQueryById(queryId: string): Promise<SavedQuery | undefined> {
+    return this.savedQueries.get(queryId);
+  }
 }
 
 export class PostgreSQLStorage implements IStorage {
@@ -492,6 +545,60 @@ export class PostgreSQLStorage implements IStorage {
   async deleteExpiredSessions(): Promise<number> {
     const result = await db.delete(userSessions).where(sql`expires_at < NOW()`);
     return result.rowCount ?? 0;
+  }
+
+  // Saved queries methods (PostgreSQL implementation)
+  async createSavedQuery(userId: string, userRole: string, query: InsertSavedQuery): Promise<SavedQuery> {
+    const savedQueryData = {
+      queryName: query.queryName,
+      queryText: query.queryText,
+      createdBy: userId,
+      role: userRole,
+    };
+    const result = await db.insert(savedQueries).values(savedQueryData).returning();
+    return result[0];
+  }
+
+  async getSavedQueriesForUser(userId: string, userRole: string): Promise<SavedQuery[]> {
+    let baseQuery = db.select().from(savedQueries);
+    
+    // Apply role-based filtering
+    if (userRole === 'business_user') {
+      // Business users can only see their own queries
+      baseQuery = baseQuery.where(eq(savedQueries.createdBy, userId));
+    } else if (userRole === 'developer') {
+      // Developers can see all developer queries
+      baseQuery = baseQuery.where(eq(savedQueries.role, 'developer'));
+    } else if (userRole === 'admin') {
+      // Admins can see all queries from business_user, developer, and admin roles
+      baseQuery = baseQuery.where(
+        or(
+          eq(savedQueries.role, 'business_user'),
+          eq(savedQueries.role, 'developer'),
+          eq(savedQueries.role, 'admin')
+        )
+      );
+    } else {
+      // Unknown role, return empty array
+      return [];
+    }
+    
+    return await baseQuery.orderBy(savedQueries.createdAt);
+  }
+
+  async deleteSavedQuery(queryId: string, userId: string): Promise<boolean> {
+    // Only allow users to delete their own queries
+    const result = await db.delete(savedQueries)
+      .where(and(
+        eq(savedQueries.id, queryId),
+        eq(savedQueries.createdBy, userId)
+      ));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getSavedQueryById(queryId: string): Promise<SavedQuery | undefined> {
+    const result = await db.select().from(savedQueries).where(eq(savedQueries.id, queryId));
+    return result[0];
   }
 }
 

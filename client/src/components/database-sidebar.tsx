@@ -15,20 +15,23 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useUser } from "@/contexts/user-context";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Connection } from "@shared/schema";
+import SavedQueries from "@/components/saved-queries";
+import type { Connection, SavedQuery } from "@shared/schema";
 
 interface DatabaseSidebarProps {
   connections: Connection[];
   activeConnection: Connection | null;
   onConnectionSelect: (connection: Connection) => void;
   onAddConnection: () => void;
+  onLoadSavedQuery: (query: SavedQuery) => void;
 }
 
 export default function DatabaseSidebar({ 
   connections, 
   activeConnection, 
   onConnectionSelect, 
-  onAddConnection 
+  onAddConnection,
+  onLoadSavedQuery
 }: DatabaseSidebarProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
   const { hasPermission, isAdmin } = useUser();
@@ -253,6 +256,9 @@ export default function DatabaseSidebar({
           )}
         </div>
       </ScrollArea>
+      
+      {/* Saved Queries Section */}
+      <SavedQueries onLoadQuery={onLoadSavedQuery} />
     </aside>
   );
 }

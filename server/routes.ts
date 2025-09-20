@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { databaseService } from "./services/database";
 import { authService } from "./services/auth";
-import { insertConnectionSchema, insertQuerySchema, insertUserSchema, loginSchema, USER_ROLES } from "@shared/schema";
+import { insertConnectionSchema, insertQuerySchema, insertUserSchema, loginSchema, insertSavedQuerySchema, USER_ROLES } from "@shared/schema";
 import { authenticateUser, requireAuth, requireRole, requirePermission, validateQueryPermissions } from "./middleware/auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -250,6 +250,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch query result" });
+    }
+  });
+
+  // Saved queries routes (user-saved queries with role-based access)
+  app.post("/api/saved-queries", requireAuth, async (req, res) => {
+    try {
+      const savedQueryData = insertSavedQuerySchema.parse(req.body);
+      const user = req.user!;
+      
+      const savedQuery = await storage.createSavedQuery(user.id, user.role, savedQueryData);
+      res.json(savedQuery);
+    } catch (error) {
+      res.status(400).json({ 
+        error: error instanceof Error ? error.message : "Failed to save query",
+        code: "SAVE_QUERY_FAILED"
+      });
+    }
+  });
+
+  app.get("/api/saved-queries", requireAuth, async (req, res) => {
+    try {
+      const user = req.user!;
+      const savedQueries = await storage.getSavedQueriesForUser(user.id, user.role);
+      res.json(savedQueries);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch saved queries" });
+    }
+  });
+
+  app.delete("/api/saved-queries/:id", requireAuth, async (req, res) => {
+    try {
+      const queryId = req.params.id;
+      const user = req.user!;
+      
+      const deleted = await storage.deleteSavedQuery(queryId, user.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Query not found or access denied" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete saved query" });
+    }
+  });
+
+  app.get("/api/saved-queries/:id", requireAuth, async (req, res) => {
+    try {
+      const queryId = req.params.id;
+      const savedQuery = await storage.getSavedQueryById(queryId);
+      
+      if (!savedQuery) {
+        return res.status(404).json({ error: "Saved query not found" });
+      }
+      
+      // Check role-based access
+      const user = req.user!;
+      let hasAccess = false;
+      
+      if (user.role === 'business_user') {
+        hasAccess = savedQuery.createdBy === user.id;
+      } else if (user.role === 'developer') {
+        hasAccess = savedQuery.role === 'developer';
+      } else if (user.role === 'admin') {
+        hasAccess = savedQuery.role === 'business_user' || savedQuery.role === 'developer' || savedQuery.role === 'admin';
+      }
+      
+      if (!hasAccess) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(savedQuery);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch saved query" });
     }
   });
 
