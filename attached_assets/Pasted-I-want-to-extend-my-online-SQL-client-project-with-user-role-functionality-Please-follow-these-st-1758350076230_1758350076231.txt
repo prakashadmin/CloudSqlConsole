@@ -1,0 +1,43 @@
+I want to extend my online SQL client project with user role functionality. 
+Please follow these steps carefully and do not introduce bugs:
+
+1. Add a user management system with authentication (username + password).
+   - Use a secure library for password hashing (e.g., bcrypt).
+   - Store users in a proper users table with their role type.
+
+2. Define three roles with strict permissions:
+   - Role 1: **Admin**
+     - Can add new users.
+     - Can add/manage database connections.
+     - Full access to execute queries.
+   - Role 2: **Developer**
+     - Can only execute queries (SELECT, INSERT, UPDATE, DELETE).
+     - Cannot add databases.
+     - Cannot add users.
+   - Role 3: **Business User**
+     - Can only execute **read-only (SELECT)** queries.
+     - Cannot run INSERT, UPDATE, DELETE, DROP, ALTER, or CREATE commands.
+     - Cannot add databases or users.
+
+3. Enforce role-based access control (RBAC):
+   - Before executing any SQL query, check the user role.
+   - If a Developer tries to add a database or a user → deny with a clear error message.
+   - If a Business User tries to execute non-SELECT queries → deny with a clear error message.
+
+4. Implement a clean admin panel (web-based):
+   - Admin can create new users and assign roles.
+   - Provide a form where admin selects role type from a dropdown (Admin / Developer / Business User).
+
+5. After implementation, create a **test script**:
+   - Create one Admin, one Developer, and one Business User.
+   - Show examples:
+     - Admin successfully creates a new Developer.
+     - Developer runs an UPDATE query successfully but fails when trying to add a user.
+     - Business User runs a SELECT query successfully but fails when trying an UPDATE.
+
+6. Please make sure:
+   - The code runs **without bugs** in Replit.
+   - Test script should execute automatically and show console output confirming the role restrictions are working.
+   - Add comments in the code explaining each step so it’s easy to maintain.
+
+Now implement this step by step, test it, and show me the test results.
