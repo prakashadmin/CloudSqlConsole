@@ -87,7 +87,7 @@ export default function ResultsPanel({
   };
 
   // Pagination and virtualization setup
-  const pageSize = isMaximized ? 100 : 50;
+  const pageSize = 15;
   const totalPages = results?.data ? Math.ceil(results.data.length / pageSize) : 0;
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
