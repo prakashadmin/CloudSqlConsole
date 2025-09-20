@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useUser } from "@/contexts/user-context";
 import type { Connection } from "@shared/schema";
 
 interface DatabaseSidebarProps {
@@ -26,6 +27,7 @@ export default function DatabaseSidebar({
   onAddConnection 
 }: DatabaseSidebarProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
+  const { hasPermission } = useUser();
 
   const { data: schema } = useQuery<{ tables: any[] }>({
     queryKey: ['/api/connections', activeConnection?.id, 'schema'],
@@ -60,16 +62,18 @@ export default function DatabaseSidebar({
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-sm">Database Connections</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onAddConnection}
-            className="text-primary hover:text-primary/80 text-sm"
-            data-testid="button-add-connection"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
+          {hasPermission('MANAGE_CONNECTIONS') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onAddConnection}
+              className="text-primary hover:text-primary/80 text-sm"
+              data-testid="button-add-connection"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Button>
+          )}
         </div>
         
         {/* Connection List */}

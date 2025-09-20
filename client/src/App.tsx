@@ -26,7 +26,7 @@ function AuthenticatedRouter() {
 }
 
 function AppContent() {
-  const { user, isLoading } = useUser();
+  const { user, isLoading, login } = useUser();
 
   if (isLoading) {
     return (
@@ -40,7 +40,7 @@ function AppContent() {
   }
 
   if (!user) {
-    return <Login onLoginSuccess={() => {}} />;
+    return <Login onLoginSuccess={login} />;
   }
 
   return <AuthenticatedRouter />;

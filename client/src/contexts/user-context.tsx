@@ -53,6 +53,7 @@ export function UserProvider({ children }: UserProviderProps) {
 
   const login = (userData: User) => {
     setUser(userData);
+    // Force a re-render which will trigger the redirect in App.tsx
   };
 
   const logout = async () => {
@@ -73,8 +74,8 @@ export function UserProvider({ children }: UserProviderProps) {
         // Admin has all permissions
         return true;
       case 'developer':
-        // Developer can execute queries and manage connections but cannot create users
-        return action === 'EXECUTE_QUERY' || action === 'READ_ONLY_QUERY' || action === 'MANAGE_CONNECTIONS';
+        // Developer can execute queries but cannot create users or manage connections
+        return action === 'EXECUTE_QUERY' || action === 'READ_ONLY_QUERY';
       case 'business_user':
         // Business user can only execute read-only queries
         return action === 'READ_ONLY_QUERY';
