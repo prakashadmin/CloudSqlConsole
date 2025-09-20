@@ -128,7 +128,7 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
           {results.columns.map((column: any) => (
             <div
               key={column.name}
-              className={`flex-1 min-w-[120px] px-4 py-3 font-medium cursor-pointer hover:bg-secondary/70 transition-colors border-r border-border last:border-r-0 ${isMaximized ? 'text-base' : 'text-sm'}`}
+              className={`flex-1 min-w-[200px] px-4 py-3 font-medium cursor-pointer hover:bg-secondary/70 transition-colors border-r border-border last:border-r-0 ${isMaximized ? 'text-base' : 'text-sm'}`}
               onClick={() => handleSort(column.name)}
               data-testid={`column-header${isMaximized ? '-maximized' : ''}-${column.name}`}
             >
@@ -168,13 +168,15 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
               {results.columns.map((column: any) => (
                 <div
                   key={column.name}
-                  className={`flex-1 min-w-[120px] px-4 py-2 border-r border-border last:border-r-0 flex items-center ${isMaximized ? 'text-sm' : 'text-sm'}`}
+                  className={`flex-1 min-w-[200px] px-4 py-2 border-r border-border last:border-r-0 flex items-center ${isMaximized ? 'text-sm' : 'text-sm'} overflow-hidden`}
                   data-testid={`cell${isMaximized ? '-maximized' : ''}-${virtualRow.index}-${column.name}`}
                 >
-                  {row[column.name] !== null && row[column.name] !== undefined 
-                    ? String(row[column.name]) 
-                    : <span className="text-muted-foreground italic">null</span>
-                  }
+                  <div className="truncate w-full" title={row[column.name] !== null && row[column.name] !== undefined ? String(row[column.name]) : 'null'}>
+                    {row[column.name] !== null && row[column.name] !== undefined 
+                      ? String(row[column.name]) 
+                      : <span className="text-muted-foreground italic">null</span>
+                    }
+                  </div>
                 </div>
               ))}
             </div>
@@ -321,36 +323,38 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
             )}
           </div>
           
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleExportCSV}
-              disabled={!results?.data}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm"
-              data-testid="button-export-csv"
-            >
-              <Download className="h-3 w-3 mr-1" />
-              Export CSV
-            </Button>
-            <Button
-              onClick={handleExportExcel}
-              disabled={!results?.data}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-sm"
-              data-testid="button-export-excel"
-            >
-              <FileSpreadsheet className="h-3 w-3 mr-1" />
-              Export Excel
-            </Button>
+          <div className="flex items-center gap-1 flex-wrap justify-end min-w-0">
             <Button
               variant="secondary"
-              size="icon"
+              size="sm"
               onClick={onToggleMaximize}
+              className="px-2 py-1 flex-shrink-0 order-first"
               data-testid="button-maximize-results"
             >
               <Maximize2 className="h-3 w-3" />
             </Button>
             <Button
+              onClick={handleExportCSV}
+              disabled={!results?.data}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2 py-1 flex-shrink-0"
+              data-testid="button-export-csv"
+            >
+              <Download className="h-3 w-3 mr-1" />
+              <span className="hidden sm:inline">CSV</span>
+            </Button>
+            <Button
+              onClick={handleExportExcel}
+              disabled={!results?.data}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 flex-shrink-0"
+              data-testid="button-export-excel"
+            >
+              <FileSpreadsheet className="h-3 w-3 mr-1" />
+              <span className="hidden sm:inline">Excel</span>
+            </Button>
+            <Button
               variant="secondary"
-              size="icon"
+              size="sm"
+              className="px-2 py-1 flex-shrink-0"
               data-testid="button-refresh-results"
             >
               <RefreshCw className="h-3 w-3" />
