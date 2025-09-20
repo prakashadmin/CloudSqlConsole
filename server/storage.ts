@@ -1,8 +1,8 @@
-import { type Connection, type InsertConnection, type Query, type InsertQuery, type QueryResult, connections, queries, queryResults } from "@shared/schema";
+import { type Connection, type InsertConnection, type Query, type InsertQuery, type QueryResult, type User, type InsertUser, type UserSession, connections, queries, queryResults, users, userSessions } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL environment variable is required");
@@ -37,6 +37,20 @@ export interface IStorage {
   
   // Query history methods
   getQueryHistory(connectionId?: string, limit?: number): Promise<Query[]>;
+  
+  // User management methods
+  createUser(user: InsertUser & { passwordHash: string }): Promise<User>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  getUserById(id: string): Promise<User | undefined>;
+  updateUser(id: string, updateData: Partial<User>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<boolean>;
+  getAllUsers(): Promise<User[]>;
+  
+  // Session management methods
+  createSession(userId: string, sessionToken: string, expiresAt: Date): Promise<UserSession>;
+  getSessionByToken(sessionToken: string): Promise<UserSession | undefined>;
+  deleteSession(sessionToken: string): Promise<boolean>;
+  deleteExpiredSessions(): Promise<number>;
 }
 
 class MemStorage implements IStorage {
@@ -196,6 +210,89 @@ class MemStorage implements IStorage {
       .sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0))
       .slice(0, limit);
   }
+
+  // User management methods (MemStorage implementation)
+  private users: Map<string, User> = new Map();
+  private sessions: Map<string, UserSession> = new Map();
+
+  async createUser(user: InsertUser & { passwordHash: string }): Promise<User> {
+    const id = randomUUID();
+    const newUser: User = {
+      id,
+      username: user.username,
+      passwordHash: user.passwordHash,
+      role: user.role,
+      isActive: user.isActive ?? true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(id, newUser);
+    return newUser;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const users = Array.from(this.users.values());
+    return users.find(user => user.username === username);
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<User | undefined> {
+    const existing = this.users.get(id);
+    if (!existing) return undefined;
+
+    const updated: User = { 
+      ...existing, 
+      ...updateData,
+      updatedAt: new Date(),
+    };
+    this.users.set(id, updated);
+    return updated;
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    return this.users.delete(id);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  // Session management methods (MemStorage implementation)
+  async createSession(userId: string, sessionToken: string, expiresAt: Date): Promise<UserSession> {
+    const id = randomUUID();
+    const session: UserSession = {
+      id,
+      userId,
+      sessionToken,
+      expiresAt,
+      createdAt: new Date(),
+    };
+    this.sessions.set(sessionToken, session);
+    return session;
+  }
+
+  async getSessionByToken(sessionToken: string): Promise<UserSession | undefined> {
+    return this.sessions.get(sessionToken);
+  }
+
+  async deleteSession(sessionToken: string): Promise<boolean> {
+    return this.sessions.delete(sessionToken);
+  }
+
+  async deleteExpiredSessions(): Promise<number> {
+    const now = new Date();
+    let deletedCount = 0;
+    for (const [token, session] of Array.from(this.sessions.entries())) {
+      if (session.expiresAt < now) {
+        this.sessions.delete(token);
+        deletedCount++;
+      }
+    }
+    return deletedCount;
+  }
 }
 
 export class PostgreSQLStorage implements IStorage {
@@ -322,13 +419,79 @@ export class PostgreSQLStorage implements IStorage {
   }
 
   async getQueryHistory(connectionId?: string, limit: number = 50): Promise<Query[]> {
-    let query = db.select().from(queries);
+    const baseQuery = db.select().from(queries);
     
     if (connectionId) {
-      query = query.where(eq(queries.connectionId, connectionId));
+      return await baseQuery.where(eq(queries.connectionId, connectionId)).orderBy(queries.createdAt).limit(limit);
     }
     
-    return await query.orderBy(queries.createdAt).limit(limit);
+    return await baseQuery.orderBy(queries.createdAt).limit(limit);
+  }
+
+  // User management methods
+  async createUser(user: InsertUser & { passwordHash: string }): Promise<User> {
+    const userData = {
+      username: user.username,
+      passwordHash: user.passwordHash,
+      role: user.role,
+      isActive: user.isActive ?? true,
+    };
+    const result = await db.insert(users).values(userData).returning();
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.username, username));
+    return result[0];
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<User | undefined> {
+    const updatedData = { ...updateData, updatedAt: new Date() };
+    const result = await db.update(users)
+      .set(updatedData)
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    const result = await db.delete(users).where(eq(users.id, id));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  // Session management methods
+  async createSession(userId: string, sessionToken: string, expiresAt: Date): Promise<UserSession> {
+    const sessionData = {
+      userId,
+      sessionToken,
+      expiresAt,
+    };
+    const result = await db.insert(userSessions).values(sessionData).returning();
+    return result[0];
+  }
+
+  async getSessionByToken(sessionToken: string): Promise<UserSession | undefined> {
+    const result = await db.select().from(userSessions).where(eq(userSessions.sessionToken, sessionToken));
+    return result[0];
+  }
+
+  async deleteSession(sessionToken: string): Promise<boolean> {
+    const result = await db.delete(userSessions).where(eq(userSessions.sessionToken, sessionToken));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async deleteExpiredSessions(): Promise<number> {
+    const result = await db.delete(userSessions).where(sql`expires_at < NOW()`);
+    return result.rowCount ?? 0;
   }
 }
 

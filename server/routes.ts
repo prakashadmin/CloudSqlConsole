@@ -2,11 +2,108 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { databaseService } from "./services/database";
-import { insertConnectionSchema, insertQuerySchema } from "@shared/schema";
+import { authService } from "./services/auth";
+import { insertConnectionSchema, insertQuerySchema, insertUserSchema, loginSchema, USER_ROLES } from "@shared/schema";
+import { authenticateUser, requireAuth, requireRole, requirePermission, validateQueryPermissions } from "./middleware/auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Connection management routes
-  app.get("/api/connections", async (req, res) => {
+  // Apply authentication middleware to all routes
+  app.use(authenticateUser);
+
+  // Authentication routes (public)
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const credentials = loginSchema.parse(req.body);
+      const { user, sessionToken } = await authService.login(credentials);
+      
+      // Set HTTP-only cookie for session token
+      res.cookie('sessionToken', sessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: 'strict'
+      });
+      
+      // Return user info without password hash
+      const { passwordHash, ...userInfo } = user;
+      res.json({ user: userInfo, message: 'Login successful' });
+    } catch (error) {
+      res.status(401).json({ 
+        error: error instanceof Error ? error.message : 'Login failed',
+        code: 'LOGIN_FAILED'
+      });
+    }
+  });
+
+  app.post("/api/auth/logout", requireAuth, async (req, res) => {
+    try {
+      const sessionToken = req.cookies?.sessionToken;
+      if (sessionToken) {
+        await authService.logout(sessionToken);
+      }
+      
+      res.clearCookie('sessionToken');
+      res.json({ message: 'Logout successful' });
+    } catch (error) {
+      res.status(500).json({ error: 'Logout failed' });
+    }
+  });
+
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    // Return current user info without password hash
+    const { passwordHash, ...userInfo } = req.user!;
+    res.json({ user: userInfo });
+  });
+
+  // User management routes (Admin only)
+  app.post("/api/users", requirePermission('CREATE_USER'), async (req, res) => {
+    try {
+      const userData = insertUserSchema.parse(req.body);
+      const user = await authService.createUser(userData);
+      
+      // Return user info without password hash
+      const { passwordHash, ...userInfo } = user;
+      res.json({ user: userInfo, message: 'User created successfully' });
+    } catch (error) {
+      res.status(400).json({ 
+        error: error instanceof Error ? error.message : 'Failed to create user',
+        code: 'USER_CREATION_FAILED'
+      });
+    }
+  });
+
+  app.get("/api/users", requireRole(USER_ROLES.ADMIN), async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      // Remove password hashes from response
+      const safeUsers = users.map(({ passwordHash, ...user }) => user);
+      res.json(safeUsers);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch users' });
+    }
+  });
+
+  app.delete("/api/users/:id", requireRole(USER_ROLES.ADMIN), async (req, res) => {
+    try {
+      // Prevent admin from deleting themselves
+      if (req.params.id === req.user!.id) {
+        return res.status(400).json({ 
+          error: 'Cannot delete your own account',
+          code: 'SELF_DELETE_FORBIDDEN'
+        });
+      }
+      
+      const deleted = await storage.deleteUser(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete user' });
+    }
+  });
+  // Connection management routes (require authentication)
+  app.get("/api/connections", requireAuth, async (req, res) => {
     try {
       const connections = await storage.getConnections();
       // Remove passwords from response for security
@@ -20,7 +117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/connections", async (req, res) => {
+  app.post("/api/connections", requirePermission('MANAGE_CONNECTIONS'), async (req, res) => {
     try {
       const connectionData = insertConnectionSchema.parse(req.body);
       const connection = await storage.createConnection(connectionData);
@@ -30,7 +127,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/connections/:id/test", async (req, res) => {
+  app.post("/api/connections/:id/test", requirePermission('MANAGE_CONNECTIONS'), async (req, res) => {
     try {
       const connection = await storage.getConnection(req.params.id);
       if (!connection) {
@@ -44,7 +141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/connections/:id/activate", async (req, res) => {
+  app.post("/api/connections/:id/activate", requirePermission('MANAGE_CONNECTIONS'), async (req, res) => {
     try {
       await storage.setActiveConnection(req.params.id);
       res.json({ success: true });
@@ -53,7 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/connections/:id", async (req, res) => {
+  app.delete("/api/connections/:id", requirePermission('MANAGE_CONNECTIONS'), async (req, res) => {
     try {
       const deleted = await storage.deleteConnection(req.params.id);
       if (!deleted) {
@@ -65,8 +162,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Query execution routes
-  app.post("/api/query/execute", async (req, res) => {
+  // Query execution routes (with role-based SQL validation)
+  app.post("/api/query/execute", validateQueryPermissions, async (req, res) => {
     try {
       const { connectionId, query } = req.body;
       
@@ -107,7 +204,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Schema routes
-  app.get("/api/connections/:id/schema", async (req, res) => {
+  app.get("/api/connections/:id/schema", requireAuth, async (req, res) => {
     try {
       const connection = await storage.getConnection(req.params.id);
       if (!connection) {
@@ -121,8 +218,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Query history and saved queries routes
-  app.get("/api/queries", async (req, res) => {
+  // Query history and saved queries routes (require authentication)
+  app.get("/api/queries", requireAuth, async (req, res) => {
     try {
       const connectionId = req.query.connectionId as string;
       const queries = await storage.getQueries(connectionId);
@@ -132,7 +229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/queries/history", async (req, res) => {
+  app.get("/api/queries/history", requireAuth, async (req, res) => {
     try {
       const connectionId = req.query.connectionId as string;
       const limit = parseInt(req.query.limit as string) || 50;
@@ -143,7 +240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/queries/:id/result", async (req, res) => {
+  app.get("/api/queries/:id/result", requireAuth, async (req, res) => {
     try {
       const queryId = req.params.id;
       const result = await storage.getQueryResultByQueryId(queryId);
@@ -156,7 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/queries", async (req, res) => {
+  app.post("/api/queries", requireAuth, async (req, res) => {
     try {
       const queryData = insertQuerySchema.parse(req.body);
       const query = await storage.createQuery(queryData);
@@ -166,7 +263,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/queries/:id", async (req, res) => {
+  app.put("/api/queries/:id", requireAuth, async (req, res) => {
     try {
       const queryData = insertQuerySchema.partial().parse(req.body);
       const query = await storage.updateQuery(req.params.id, queryData);
@@ -179,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/queries/:id", async (req, res) => {
+  app.delete("/api/queries/:id", requireAuth, async (req, res) => {
     try {
       const deleted = await storage.deleteQuery(req.params.id);
       if (!deleted) {
@@ -191,8 +288,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Export routes
-  app.post("/api/export/csv", async (req, res) => {
+  // Export routes (require authentication)
+  app.post("/api/export/csv", requireAuth, async (req, res) => {
     try {
       const { data, columns } = req.body;
       
