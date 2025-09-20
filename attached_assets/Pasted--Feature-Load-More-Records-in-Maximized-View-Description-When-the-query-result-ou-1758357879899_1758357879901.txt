@@ -1,0 +1,62 @@
+
+### **Feature: Load More Records in Maximized View**
+
+**Description:**
+When the query result output is maximized, users should be able to view more rows using a **Load More** button at the bottom of the results. This functionality should only fetch data temporarily (not stored anywhere).
+
+---
+
+### **Functional Requirements**
+
+1. **Load More Button**
+
+   * Visible **only when the output is maximized**.
+   * Positioned at the bottom of the result table.
+   * Clicking it should fetch the next set of rows (e.g., 50 or 100 at a time).
+
+2. **Data Handling**
+
+   * Fetched records must not be persisted to any storage.
+   * Data should only exist in memory for the active session.
+   * If the user closes or minimizes the view, additional fetched rows are discarded.
+
+3. **Query Execution**
+
+   * Initial query should fetch only a limited set of rows (e.g., first 50).
+   * On **Load More**, the system should run the same query with an **offset + limit** approach (e.g., `OFFSET 50 LIMIT 50`, then `OFFSET 100 LIMIT 50`, etc.).
+   * Append the new records to the existing result set.
+
+4. **UI Behavior**
+
+   * Show a loading spinner while fetching new rows.
+   * If no more rows are available, hide or disable the **Load More** button.
+   * Scroll position should adjust smoothly so users continue from where they left off.
+
+---
+
+### **Acceptance Criteria & Test Cases**
+
+✅ **Visibility**
+
+* [ ] **Load More** button is visible only in **maximized output view**.
+* [ ] Button is hidden in normal (non-maximized) view.
+
+✅ **Data Loading**
+
+* [ ] Initial load shows only the first N rows (configurable).
+* [ ] Clicking **Load More** fetches the next N rows and appends to the result set.
+* [ ] Data is not persisted in DB or storage; it only lives in the frontend memory.
+
+✅ **Edge Cases**
+
+* [ ] If query returns fewer rows than the first limit, **Load More** should not appear.
+* [ ] If user clicks Load More multiple times → should fetch in correct order without duplicates.
+* [ ] If backend errors on Load More (e.g., timeout), display a clear error message.
+* [ ] If no more rows are available → button disappears or shows “No more data”.
+
+✅ **Performance**
+
+* [ ] Pagination queries (LIMIT/OFFSET) execute efficiently.
+* [ ] UI should remain responsive even with large datasets.
+
+---
