@@ -317,8 +317,8 @@ export default function ResultsPanel({
                 </div>
               </div>
               
-              {/* Load More Button - Only visible when maximized and has more rows */}
-              {isMaximized && hasMoreRows && onLoadMore && (
+              {/* Load More Button - Always visible when has more rows */}
+              {hasMoreRows && onLoadMore && (
                 <div className="flex justify-center">
                   <Button 
                     onClick={onLoadMore}
@@ -342,7 +342,7 @@ export default function ResultsPanel({
               )}
               
               {/* No more data message */}
-              {isMaximized && !hasMoreRows && results?.hasMoreRows === false && (
+              {!hasMoreRows && results?.hasMoreRows === false && (
                 <div className="flex justify-center text-muted-foreground text-sm">
                   No more records to load
                 </div>
@@ -439,36 +439,69 @@ export default function ResultsPanel({
         
         {/* Results Footer with Working Pagination */}
         {results?.data && results.data.length > 0 && (
-          <div className="bg-secondary/30 border-t border-border px-4 py-2 flex items-center justify-between text-sm">
-            <div className="text-muted-foreground" data-testid="pagination-info">
-              Showing {startIndex + 1}-{Math.min(endIndex, results.data.length)} of {results.data.length} results
-              {results.rowCount !== results.data.length && (
-                <span className="ml-1">({results.rowCount} total from query)</span>
-              )}
+          <div className="bg-secondary/30 border-t border-border px-4 py-2">
+            <div className="flex items-center justify-between text-sm mb-2">
+              <div className="text-muted-foreground" data-testid="pagination-info">
+                Showing {startIndex + 1}-{Math.min(endIndex, results.data.length)} of {results.data.length} results
+                {results.rowCount !== results.data.length && (
+                  <span className="ml-1">({results.rowCount} total from query)</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                  data-testid="button-previous-page"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </Button>
+                <span className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm">
+                  {currentPage} of {totalPages}
+                </span>
+                <Button 
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  data-testid="button-next-page"
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={handlePreviousPage}
-                disabled={currentPage === 1}
-                data-testid="button-previous-page"
-              >
-                <ChevronLeft className="h-3 w-3" />
-              </Button>
-              <span className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm">
-                {currentPage} of {totalPages}
-              </span>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-                data-testid="button-next-page"
-              >
-                <ChevronRight className="h-3 w-3" />
-              </Button>
-            </div>
+            
+            {/* Load More Button - Always visible when has more rows */}
+            {hasMoreRows && onLoadMore && (
+              <div className="flex justify-center">
+                <Button 
+                  onClick={onLoadMore}
+                  disabled={isLoadingMore}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 text-sm"
+                  data-testid="button-load-more"
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                      Loading more rows...
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3 w-3 mr-2" />
+                      Load More Records
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+            
+            {/* No more data message */}
+            {!hasMoreRows && results?.hasMoreRows === false && (
+              <div className="flex justify-center text-muted-foreground text-xs">
+                No more records to load
+              </div>
+            )}
           </div>
         )}
       </div>
