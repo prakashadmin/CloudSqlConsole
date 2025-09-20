@@ -80,6 +80,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const result = await databaseService.executeQuery(connectionId, connection, query);
+      
+      // Save query to history (auto-generated name)
+      try {
+        const queryName = `Query executed at ${new Date().toLocaleString()}`;
+        const savedQuery = await storage.createQuery({
+          name: queryName,
+          content: query,
+          connectionId: connectionId
+        });
+        
+        // Save query result
+        if (savedQuery.id) {
+          await storage.saveQueryResult(savedQuery.id, result);
+        }
+      } catch (historyError) {
+        console.warn("Failed to save query to history:", historyError);
+        // Don't fail the main request if history save fails
+      }
+      
       res.json(result);
     } catch (error) {
       console.error("Query execution error:", error);
@@ -102,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Saved queries routes
+  // Query history and saved queries routes
   app.get("/api/queries", async (req, res) => {
     try {
       const connectionId = req.query.connectionId as string;
@@ -110,6 +129,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(queries);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch queries" });
+    }
+  });
+
+  app.get("/api/queries/history", async (req, res) => {
+    try {
+      const connectionId = req.query.connectionId as string;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const queries = await storage.getQueryHistory(connectionId, limit);
+      res.json(queries);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch query history" });
+    }
+  });
+
+  app.get("/api/queries/:id/result", async (req, res) => {
+    try {
+      const queryId = req.params.id;
+      const result = await storage.getQueryResultByQueryId(queryId);
+      if (!result) {
+        return res.status(404).json({ error: "Query result not found" });
+      }
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch query result" });
     }
   });
 
