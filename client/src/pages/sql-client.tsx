@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Database, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import DatabaseSidebar from "@/components/database-sidebar";
 import QueryTabs from "@/components/query-tabs";
 import QueryEditor from "@/components/query-editor";
@@ -23,6 +24,7 @@ export interface QueryTab {
 export default function SQLClient() {
   const { hasPermission } = useUser();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isResultsMaximized, setIsResultsMaximized] = useState(false);
   const [queryTabs, setQueryTabs] = useState<QueryTab[]>([
     {
       id: "1",
@@ -238,21 +240,32 @@ export default function SQLClient() {
           />
 
           {/* Query Editor & Results Split View */}
-          <div className="flex-1 flex flex-col">
-            {/* Query Editor */}
-            <QueryEditor
-              tabs={queryTabs}
-              onContentChange={updateTabContent}
-              onExecuteQuery={handleExecuteQuery}
-              isExecuting={isExecuting}
-              activeConnection={activeConnection}
-            />
-
-            {/* Results Panel */}
-            <ResultsPanel 
-              results={queryResults}
-              isLoading={isExecuting}
-            />
+          <div className="flex-1">
+            <ResizablePanelGroup direction="vertical" className="h-full">
+              {/* Query Editor */}
+              <ResizablePanel defaultSize={55} minSize={20} maxSize={80}>
+                <QueryEditor
+                  tabs={queryTabs}
+                  onContentChange={updateTabContent}
+                  onExecuteQuery={handleExecuteQuery}
+                  isExecuting={isExecuting}
+                  activeConnection={activeConnection}
+                />
+              </ResizablePanel>
+              
+              {/* Resizable Handle */}
+              <ResizableHandle withHandle />
+              
+              {/* Results Panel */}
+              <ResizablePanel defaultSize={45} minSize={20} maxSize={80}>
+                <ResultsPanel 
+                  results={queryResults}
+                  isLoading={isExecuting}
+                  isMaximized={isResultsMaximized}
+                  onToggleMaximize={() => setIsResultsMaximized(!isResultsMaximized)}
+                />
+              </ResizablePanel>
+            </ResizablePanelGroup>
           </div>
         </main>
       </div>

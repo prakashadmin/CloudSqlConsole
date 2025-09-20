@@ -6,11 +6,15 @@ import {
   Table, 
   Plus, 
   ChevronRight, 
-  ChevronDown 
+  ChevronDown,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useUser } from "@/contexts/user-context";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Connection } from "@shared/schema";
 
 interface DatabaseSidebarProps {
@@ -27,7 +31,8 @@ export default function DatabaseSidebar({
   onAddConnection 
 }: DatabaseSidebarProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
-  const { hasPermission } = useUser();
+  const { hasPermission, isAdmin } = useUser();
+  const { toast } = useToast();
 
   const { data: schema } = useQuery<{ tables: any[] }>({
     queryKey: ['/api/connections', activeConnection?.id, 'schema'],
@@ -57,6 +62,31 @@ export default function DatabaseSidebar({
     }
   };
 
+  const handleDeleteConnection = async (connectionId: string, connectionName: string) => {
+    try {
+      const response = await apiRequest('DELETE', `/api/connections/${connectionId}`);
+      
+      if (response.ok) {
+        // Invalidate connections query to refresh the list
+        queryClient.invalidateQueries({ queryKey: ['/api/connections'] });
+        
+        toast({
+          title: "Connection deleted",
+          description: `Database connection "${connectionName}" has been deleted successfully.`,
+        });
+      } else {
+        throw new Error('Failed to delete connection');
+      }
+    } catch (error) {
+      console.error('Failed to delete connection:', error);
+      toast({
+        title: "Delete failed", 
+        description: "Could not delete the database connection. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <aside className="bg-card border-r border-border w-80 flex flex-col" data-testid="database-sidebar">
       <div className="p-4 border-b border-border">
@@ -81,28 +111,68 @@ export default function DatabaseSidebar({
           {connections.map((connection) => (
             <div key={connection.id} className="space-y-1">
               <div 
-                className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                className={`p-3 rounded-md border transition-colors ${
                   connection.isActive 
                     ? 'bg-primary/10 border-primary/20' 
                     : 'bg-secondary/50 border-border hover:bg-secondary/70'
                 }`}
-                onClick={() => handleConnectionActivate(connection)}
                 data-testid={`connection-${connection.id}`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Server className={`text-sm ${connection.isActive ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <span className="font-medium text-sm">{connection.name}</span>
+                <div 
+                  className="cursor-pointer"
+                  onClick={() => handleConnectionActivate(connection)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Server className={`text-sm ${connection.isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <span className="font-medium text-sm">{connection.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className={`w-2 h-2 rounded-full ${
+                          connection.isActive ? 'bg-emerald-500' : 'bg-gray-500'
+                        }`} 
+                        title={connection.isActive ? 'Connected' : 'Disconnected'}
+                      />
+                      {isAdmin && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => e.stopPropagation()}
+                              data-testid={`button-delete-connection-${connection.id}`}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent data-testid="delete-connection-dialog">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Database Connection</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete the connection "{connection.name}"? 
+                                This action cannot be undone and will remove the connection from all users.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                              <AlertDialogAction 
+                                onClick={() => handleDeleteConnection(connection.id, connection.name)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                data-testid="button-confirm-delete"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </div>
-                  <div 
-                    className={`w-2 h-2 rounded-full ${
-                      connection.isActive ? 'bg-emerald-500' : 'bg-gray-500'
-                    }`} 
-                    title={connection.isActive ? 'Connected' : 'Disconnected'}
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {connection.type} • {connection.host}:{connection.port}
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {connection.type} • {connection.host}:{connection.port}
+                  </div>
                 </div>
               </div>
               

@@ -38,7 +38,7 @@ export default function QueryEditor({
   };
 
   return (
-    <div className="flex-1 min-h-0 bg-background" data-testid="query-editor">
+    <div className="h-full bg-background" data-testid="query-editor">
       <div className="h-full flex flex-col">
         {/* Query Editor Toolbar */}
         <div className="bg-card border-b border-border p-3 flex items-center justify-between">
@@ -70,7 +70,7 @@ export default function QueryEditor({
             </Button>
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>MySQL</span>
+            <span>{activeConnection?.type?.toUpperCase() || 'No Database'}</span>
           </div>
         </div>
         
