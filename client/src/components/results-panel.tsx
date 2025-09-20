@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { 
   Table as TableIcon, 
   Download, 
@@ -26,7 +27,10 @@ interface ResultsPanelProps {
 export default function ResultsPanel({ results, isLoading, isMaximized = false, onToggleMaximize }: ResultsPanelProps) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
+  
+  const parentRef = useRef<HTMLDivElement>(null);
 
   const handleSort = (columnName: string) => {
     if (sortColumn === columnName) {
@@ -70,6 +74,12 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
     });
   };
 
+  // Pagination and virtualization setup
+  const pageSize = isMaximized ? 100 : 50;
+  const totalPages = results?.data ? Math.ceil(results.data.length / pageSize) : 0;
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
   const sortedData = results?.data ? [...results.data].sort((a, b) => {
     if (!sortColumn) return 0;
     
@@ -80,6 +90,99 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
     if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
     return 0;
   }) : [];
+
+  // Get current page data
+  const currentPageData = sortedData.slice(startIndex, endIndex);
+
+  // Virtualization for the current page
+  const rowVirtualizer = useVirtualizer({
+    count: currentPageData.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 35, // Estimated row height in pixels
+    overscan: 10, // Render extra rows for smooth scrolling
+  });
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  };
+
+  // Reset currentPage when results change or when toggling maximized mode
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [results, isMaximized]);
+
+  // Unified Virtualized Table Component
+  const renderVirtualizedTable = () => (
+    <div 
+      ref={parentRef}
+      className="h-full overflow-auto border border-border rounded-md"
+      data-testid={`virtualized-table-container${isMaximized ? '-maximized' : ''}`}
+    >
+      {/* Table Header */}
+      <div className="sticky top-0 bg-card border-b border-border z-10">
+        <div className="flex">
+          {results.columns.map((column: any) => (
+            <div
+              key={column.name}
+              className={`flex-1 min-w-[120px] px-4 py-3 font-medium cursor-pointer hover:bg-secondary/70 transition-colors border-r border-border last:border-r-0 ${isMaximized ? 'text-base' : 'text-sm'}`}
+              onClick={() => handleSort(column.name)}
+              data-testid={`column-header${isMaximized ? '-maximized' : ''}-${column.name}`}
+            >
+              <div className="flex items-center gap-2">
+                <span>{column.name}</span>
+                <ArrowUpDown className={`text-muted-foreground ${isMaximized ? 'h-4 w-4' : 'h-3 w-3'}`} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Virtualized Table Body */}
+      <div
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const row = currentPageData[virtualRow.index];
+          return (
+            <div
+              key={virtualRow.index}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+              className="flex hover:bg-secondary/30 transition-colors border-b border-border"
+              data-testid={`row${isMaximized ? '-maximized' : ''}-${virtualRow.index}`}
+            >
+              {results.columns.map((column: any) => (
+                <div
+                  key={column.name}
+                  className={`flex-1 min-w-[120px] px-4 py-2 border-r border-border last:border-r-0 flex items-center ${isMaximized ? 'text-sm' : 'text-sm'}`}
+                  data-testid={`cell${isMaximized ? '-maximized' : ''}-${virtualRow.index}-${column.name}`}
+                >
+                  {row[column.name] !== null && row[column.name] !== undefined 
+                    ? String(row[column.name]) 
+                    : <span className="text-muted-foreground italic">null</span>
+                  }
+                </div>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   // If maximized, render as full-screen overlay
   if (isMaximized) {
@@ -136,46 +239,14 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
           </div>
           
           {/* Maximized Data Grid */}
-          <ScrollArea className="flex-1">
+          <div className="flex-1 p-4 relative">
             {isLoading ? (
               <div className="flex items-center justify-center h-32" data-testid="loading-results-maximized">
                 <RefreshCw className="h-8 w-8 animate-spin text-primary" />
                 <span className="ml-3 text-lg text-muted-foreground">Executing query...</span>
               </div>
             ) : results?.data && results.data.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {results.columns.map((column: any) => (
-                      <TableHead 
-                        key={column.name}
-                        className="cursor-pointer hover:bg-secondary/70 transition-colors text-base"
-                        onClick={() => handleSort(column.name)}
-                        data-testid={`column-header-maximized-${column.name}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span>{column.name}</span>
-                          <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedData.slice(0, 100).map((row: any, index: number) => (
-                    <TableRow key={index} className="hover:bg-secondary/30" data-testid={`row-maximized-${index}`}>
-                      {results.columns.map((column: any) => (
-                        <TableCell key={column.name} className="text-sm" data-testid={`cell-maximized-${index}-${column.name}`}>
-                          {row[column.name] !== null && row[column.name] !== undefined 
-                            ? String(row[column.name]) 
-                            : <span className="text-muted-foreground italic">null</span>
-                          }
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              renderVirtualizedTable()
             ) : results === null ? (
               <div className="flex items-center justify-center h-32 text-muted-foreground" data-testid="no-results-maximized">
                 <TableIcon className="h-12 w-12 mr-3 opacity-50" />
@@ -187,21 +258,36 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
                 <span className="text-lg">No results returned</span>
               </div>
             )}
-          </ScrollArea>
+          </div>
           
-          {/* Maximized Results Footer with Enhanced Pagination */}
+          {/* Maximized Results Footer with Working Pagination */}
           {results?.data && results.data.length > 0 && (
             <div className="bg-secondary/30 border-t border-border px-6 py-4 flex items-center justify-between">
               <div className="text-muted-foreground" data-testid="pagination-info-maximized">
-                Showing 1-{Math.min(100, results.data.length)} of {results.rowCount} results
+                Showing {startIndex + 1}-{Math.min(endIndex, results.data.length)} of {results.data.length} results
+                {results.rowCount !== results.data.length && (
+                  <span className="ml-1">({results.rowCount} total from query)</span>
+                )}
               </div>
               <div className="flex items-center gap-3">
-                <Button variant="secondary" data-testid="button-previous-page-maximized">
+                <Button 
+                  variant="secondary" 
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                  data-testid="button-previous-page-maximized"
+                >
                   <ChevronLeft className="h-4 w-4" />
                   Previous
                 </Button>
-                <span className="px-4 py-2 bg-primary text-primary-foreground rounded">1</span>
-                <Button variant="secondary" data-testid="button-next-page-maximized">
+                <span className="px-4 py-2 bg-primary text-primary-foreground rounded">
+                  {currentPage} of {totalPages}
+                </span>
+                <Button 
+                  variant="secondary" 
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  data-testid="button-next-page-maximized"
+                >
                   Next
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -273,46 +359,14 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
         </div>
         
         {/* Data Grid */}
-        <ScrollArea className="flex-1">
+        <div className="flex-1 relative">
           {isLoading ? (
             <div className="flex items-center justify-center h-32" data-testid="loading-results">
               <RefreshCw className="h-6 w-6 animate-spin text-primary" />
               <span className="ml-2 text-sm text-muted-foreground">Executing query...</span>
             </div>
           ) : results?.data && results.data.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  {results.columns.map((column: any) => (
-                    <TableHead 
-                      key={column.name}
-                      className="cursor-pointer hover:bg-secondary/70 transition-colors"
-                      onClick={() => handleSort(column.name)}
-                      data-testid={`column-header-${column.name}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span>{column.name}</span>
-                        <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-                      </div>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedData.slice(0, 50).map((row: any, index: number) => (
-                  <TableRow key={index} className="hover:bg-secondary/30" data-testid={`row-${index}`}>
-                    {results.columns.map((column: any) => (
-                      <TableCell key={column.name} data-testid={`cell-${index}-${column.name}`}>
-                        {row[column.name] !== null && row[column.name] !== undefined 
-                          ? String(row[column.name]) 
-                          : <span className="text-muted-foreground italic">null</span>
-                        }
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            renderVirtualizedTable()
           ) : results === null ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground" data-testid="no-results">
               <TableIcon className="h-8 w-8 mr-2 opacity-50" />
@@ -324,20 +378,37 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
               <span>No results returned</span>
             </div>
           )}
-        </ScrollArea>
+        </div>
         
-        {/* Results Footer */}
+        {/* Results Footer with Working Pagination */}
         {results?.data && results.data.length > 0 && (
           <div className="bg-secondary/30 border-t border-border px-4 py-2 flex items-center justify-between text-sm">
             <div className="text-muted-foreground" data-testid="pagination-info">
-              Showing 1-{Math.min(50, results.data.length)} of {results.rowCount} results
+              Showing {startIndex + 1}-{Math.min(endIndex, results.data.length)} of {results.data.length} results
+              {results.rowCount !== results.data.length && (
+                <span className="ml-1">({results.rowCount} total from query)</span>
+              )}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" size="sm" data-testid="button-previous-page">
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                data-testid="button-previous-page"
+              >
                 <ChevronLeft className="h-3 w-3" />
               </Button>
-              <span className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm">1</span>
-              <Button variant="secondary" size="sm" data-testid="button-next-page">
+              <span className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm">
+                {currentPage} of {totalPages}
+              </span>
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                data-testid="button-next-page"
+              >
                 <ChevronRight className="h-3 w-3" />
               </Button>
             </div>

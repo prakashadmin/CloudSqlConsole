@@ -19,6 +19,7 @@ export interface QueryTab {
   connectionId?: string;
   isActive: boolean;
   isUnsaved: boolean;
+  results?: any;
 }
 
 export default function SQLClient() {
@@ -37,7 +38,6 @@ export default function SQLClient() {
   
   const [activeConnection, setActiveConnection] = useState<Connection | null>(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [queryResults, setQueryResults] = useState<any>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   
   const { toast } = useToast();
@@ -81,7 +81,13 @@ export default function SQLClient() {
       }
 
       const result = await response.json();
-      setQueryResults(result);
+      
+      // Update results for the specific tab
+      setQueryTabs(prev => prev.map(tab => 
+        tab.id === activeTab.id 
+          ? { ...tab, results: result }
+          : tab
+      ));
       
       toast({
         title: "Query executed successfully",
@@ -259,7 +265,7 @@ export default function SQLClient() {
               {/* Results Panel */}
               <ResizablePanel defaultSize={45} minSize={20} maxSize={80}>
                 <ResultsPanel 
-                  results={queryResults}
+                  results={queryTabs.find(tab => tab.isActive)?.results || null}
                   isLoading={isExecuting}
                   isMaximized={isResultsMaximized}
                   onToggleMaximize={() => setIsResultsMaximized(!isResultsMaximized)}
