@@ -244,6 +244,25 @@ export default function SQLClient() {
     });
   };
 
+  const handleTableClick = (tableName: string) => {
+    const activeTab = queryTabs.find(tab => tab.isActive);
+    if (!activeTab) return;
+
+    // Generate a SELECT query for the clicked table
+    const selectQuery = `SELECT * FROM ${tableName};`;
+    
+    setQueryTabs(prev => prev.map(tab => 
+      tab.id === activeTab.id 
+        ? { ...tab, content: selectQuery, isUnsaved: true, results: null }
+        : tab
+    ));
+
+    toast({
+      title: "Table query loaded",
+      description: `SELECT query for table "${tableName}" has been loaded in the active tab`,
+    });
+  };
+
   return (
     <div className="h-screen bg-background text-foreground overflow-hidden" data-testid="sql-client-container">
       {/* Header */}
@@ -319,6 +338,7 @@ export default function SQLClient() {
                 onConnectionSelect={setActiveConnection}
                 onAddConnection={() => setShowConfigModal(true)}
                 onLoadSavedQuery={handleLoadSavedQuery}
+                onTableClick={handleTableClick}
               />
               <Button
                 variant="ghost"

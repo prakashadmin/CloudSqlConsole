@@ -24,6 +24,7 @@ interface DatabaseSidebarProps {
   onConnectionSelect: (connection: Connection) => void;
   onAddConnection: () => void;
   onLoadSavedQuery: (query: SavedQuery) => void;
+  onTableClick?: (tableName: string) => void;
 }
 
 export default function DatabaseSidebar({ 
@@ -31,7 +32,8 @@ export default function DatabaseSidebar({
   activeConnection, 
   onConnectionSelect, 
   onAddConnection,
-  onLoadSavedQuery
+  onLoadSavedQuery,
+  onTableClick
 }: DatabaseSidebarProps) {
   const [expandedConnections, setExpandedConnections] = useState<Set<string>>(new Set());
   const { hasPermission, isAdmin } = useUser();
@@ -62,6 +64,12 @@ export default function DatabaseSidebar({
       onConnectionSelect(connection);
     } catch (error) {
       console.error('Failed to activate connection:', error);
+    }
+  };
+
+  const handleTableClick = (tableName: string) => {
+    if (onTableClick) {
+      onTableClick(tableName);
     }
   };
 
@@ -225,11 +233,12 @@ export default function DatabaseSidebar({
                   </div>
                   
                   <div className="ml-4 space-y-1 text-sm">
-                    {schema.tables.slice(0, 10).map((table: any, index: number) => (
+                    {schema.tables.map((table: any, index: number) => (
                       <div 
                         key={index}
                         className="flex items-center gap-2 p-1 hover:bg-accent rounded-sm cursor-pointer"
                         data-testid={`table-${table.TABLE_NAME || table.table_name}`}
+                        onClick={() => handleTableClick(table.TABLE_NAME || table.table_name)}
                       >
                         <Table className="h-3 w-3 text-muted-foreground" />
                         <span>{table.TABLE_NAME || table.table_name}</span>
@@ -240,11 +249,6 @@ export default function DatabaseSidebar({
                         )}
                       </div>
                     ))}
-                    {schema.tables.length > 10 && (
-                      <div className="text-xs text-muted-foreground pl-5">
-                        ... and {schema.tables.length - 10} more tables
-                      </div>
-                    )}
                   </div>
                 </div>
               ) : (

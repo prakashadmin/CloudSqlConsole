@@ -132,6 +132,9 @@ export function validateQueryPermissions(req: Request, res: Response, next: Next
       });
     }
   }
+  
+  // Admin and developer users can execute any query (including UPDATE, DELETE, etc.)
+  // No additional validation required for these roles
 
   next();
 }
