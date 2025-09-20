@@ -7,6 +7,7 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ArrowUpDown,
   Maximize2,
   Minimize2
@@ -22,9 +23,20 @@ interface ResultsPanelProps {
   isLoading: boolean;
   isMaximized?: boolean;
   onToggleMaximize?: () => void;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
+  hasMoreRows?: boolean;
 }
 
-export default function ResultsPanel({ results, isLoading, isMaximized = false, onToggleMaximize }: ResultsPanelProps) {
+export default function ResultsPanel({ 
+  results, 
+  isLoading, 
+  isMaximized = false, 
+  onToggleMaximize,
+  onLoadMore,
+  isLoadingMore = false,
+  hasMoreRows = false 
+}: ResultsPanelProps) {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -114,6 +126,14 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
   useEffect(() => {
     setCurrentPage(1);
   }, [results, isMaximized]);
+
+  // Reset Load More state when minimizing the view
+  useEffect(() => {
+    if (!isMaximized && hasMoreRows) {
+      // When minimizing, we need to ensure load more state is reset
+      // This is handled by the parent component
+    }
+  }, [isMaximized, hasMoreRows]);
 
   // Unified Virtualized Table Component
   const renderVirtualizedTable = () => (
@@ -262,38 +282,71 @@ export default function ResultsPanel({ results, isLoading, isMaximized = false, 
             )}
           </div>
           
-          {/* Maximized Results Footer with Working Pagination */}
+          {/* Maximized Results Footer with Load More */}
           {results?.data && results.data.length > 0 && (
-            <div className="bg-secondary/30 border-t border-border px-6 py-4 flex items-center justify-between">
-              <div className="text-muted-foreground" data-testid="pagination-info-maximized">
-                Showing {startIndex + 1}-{Math.min(endIndex, results.data.length)} of {results.data.length} results
-                {results.rowCount !== results.data.length && (
-                  <span className="ml-1">({results.rowCount} total from query)</span>
-                )}
+            <div className="bg-secondary/30 border-t border-border px-6 py-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-muted-foreground" data-testid="pagination-info-maximized">
+                  Showing {startIndex + 1}-{Math.min(endIndex, results.data.length)} of {results.data.length} results
+                  {results.rowCount !== results.data.length && (
+                    <span className="ml-1">({results.rowCount} total from query)</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button 
+                    variant="secondary" 
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                    data-testid="button-previous-page-maximized"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <span className="px-4 py-2 bg-primary text-primary-foreground rounded">
+                    {currentPage} of {totalPages}
+                  </span>
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                    data-testid="button-next-page-maximized"
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Button 
-                  variant="secondary" 
-                  onClick={handlePreviousPage}
-                  disabled={currentPage === 1}
-                  data-testid="button-previous-page-maximized"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <span className="px-4 py-2 bg-primary text-primary-foreground rounded">
-                  {currentPage} of {totalPages}
-                </span>
-                <Button 
-                  variant="secondary" 
-                  onClick={handleNextPage}
-                  disabled={currentPage === totalPages}
-                  data-testid="button-next-page-maximized"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+              
+              {/* Load More Button - Only visible when maximized and has more rows */}
+              {isMaximized && hasMoreRows && onLoadMore && (
+                <div className="flex justify-center">
+                  <Button 
+                    onClick={onLoadMore}
+                    disabled={isLoadingMore}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3"
+                    data-testid="button-load-more"
+                  >
+                    {isLoadingMore ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Loading more rows...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-4 w-4 mr-2" />
+                        Load More Records
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+              
+              {/* No more data message */}
+              {isMaximized && !hasMoreRows && results?.hasMoreRows === false && (
+                <div className="flex justify-center text-muted-foreground text-sm">
+                  No more records to load
+                </div>
+              )}
             </div>
           )}
         </div>

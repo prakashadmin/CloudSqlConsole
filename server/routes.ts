@@ -165,10 +165,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Query execution routes (with role-based SQL validation)
   app.post("/api/query/execute", validateQueryPermissions, async (req, res) => {
     try {
-      const { connectionId, query } = req.body;
+      const { connectionId, query, limit, offset } = req.body;
       
       if (!connectionId || !query) {
         return res.status(400).json({ error: "Connection ID and query are required" });
+      }
+
+      // Validate and sanitize pagination parameters
+      let validatedLimit = 50; // Default limit
+      let validatedOffset = 0; // Default offset
+      
+      if (limit !== undefined) {
+        if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > 1000) {
+          return res.status(400).json({ error: "Limit must be an integer between 1 and 1000" });
+        }
+        validatedLimit = limit;
+      }
+      
+      if (offset !== undefined) {
+        if (typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) {
+          return res.status(400).json({ error: "Offset must be a non-negative integer" });
+        }
+        validatedOffset = offset;
       }
 
       const connection = await storage.getConnection(connectionId);
@@ -176,7 +194,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Connection not found" });
       }
 
-      const result = await databaseService.executeQuery(connectionId, connection, query);
+      const options = { limit: validatedLimit, offset: validatedOffset };
+      const result = await databaseService.executeQuery(connectionId, connection, query, options);
       
       // Save query to history (auto-generated name)
       try {

@@ -39,6 +39,7 @@ export default function SQLClient() {
   const [activeConnection, setActiveConnection] = useState<Connection | null>(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   const { toast } = useToast();
 
@@ -85,7 +86,15 @@ export default function SQLClient() {
       // Update results for the specific tab
       setQueryTabs(prev => prev.map(tab => 
         tab.id === activeTab.id 
-          ? { ...tab, results: result }
+          ? { 
+              ...tab, 
+              results: {
+                ...result,
+                originalQuery: activeTab.content,
+                currentOffset: result.data.length,
+                allData: result.data
+              }
+            }
           : tab
       ));
       
@@ -102,6 +111,68 @@ export default function SQLClient() {
       });
     } finally {
       setIsExecuting(false);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    const activeTab = queryTabs.find(tab => tab.isActive);
+    if (!activeTab || !activeConnection || !activeTab.results) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    try {
+      const currentOffset = activeTab.results.currentOffset || 0;
+      const originalQuery = activeTab.results.originalQuery || activeTab.content;
+      
+      const response = await fetch('/api/query/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connectionId: activeConnection.id,
+          query: originalQuery,
+          limit: 50,
+          offset: currentOffset,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Load more failed');
+      }
+
+      const result = await response.json();
+      
+      // Append new data to existing results
+      setQueryTabs(prev => prev.map(tab => 
+        tab.id === activeTab.id 
+          ? { 
+              ...tab, 
+              results: {
+                ...tab.results,
+                data: [...tab.results.allData, ...result.data],
+                allData: [...tab.results.allData, ...result.data],
+                currentOffset: currentOffset + result.data.length,
+                hasMoreRows: result.hasMoreRows,
+                rowCount: tab.results.rowCount + result.rowCount
+              }
+            }
+          : tab
+      ));
+      
+      toast({
+        title: "More records loaded",
+        description: `${result.rowCount} additional rows loaded`,
+      });
+    } catch (error) {
+      console.error('Load more error:', error);
+      toast({
+        title: "Failed to load more records",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -142,7 +213,13 @@ export default function SQLClient() {
   const updateTabContent = (tabId: string, content: string) => {
     setQueryTabs(prev => prev.map(tab => 
       tab.id === tabId 
-        ? { ...tab, content, isUnsaved: true }
+        ? { 
+            ...tab, 
+            content, 
+            isUnsaved: true,
+            // Clear results when query content changes
+            results: null
+          }
         : tab
     ));
   };
@@ -290,6 +367,9 @@ export default function SQLClient() {
                   isLoading={isExecuting}
                   isMaximized={isResultsMaximized}
                   onToggleMaximize={() => setIsResultsMaximized(!isResultsMaximized)}
+                  onLoadMore={handleLoadMore}
+                  isLoadingMore={isLoadingMore}
+                  hasMoreRows={queryTabs.find(tab => tab.isActive)?.results?.hasMoreRows || false}
                 />
               </ResizablePanel>
             </ResizablePanelGroup>
